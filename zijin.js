@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         核销自动刷新
+// @name         SJTU核销自动刷新
 // @namespace    http://tampermonkey.net/
 // @version      2024-04-10
-// @description  场馆预约核销自动刷新并自动打开个人订单，然后点击场地核销
+// @description  场馆预约核销自动刷新并自动打开个人订单，然后在iframe中点击场地核销
 // @author       You
 // @match        https://sports.sjtu.edu.cn/index
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=sjtu.edu.cn
@@ -14,69 +14,54 @@
 
     console.log('核销自动刷新脚本已加载');
 
+    // 尝试点击“个人订单”链接
+    const tryClickPersonalOrder = () => {
+        const personalOrderLink = document.querySelector('a.menuItem[href="/venue/personal"]');
+        if (personalOrderLink && personalOrderLink.offsetParent !== null) {
+            console.log('“个人订单”链接可见，正在尝试点击');
+            personalOrderLink.click();
+            // 延迟监控iframe加载，确保页面及JavaScript逻辑加载完成
+            setTimeout(monitorIframeForVerificationButton, 1000); // 增加延迟，等待iframe加载
+            return true;
+        } else {
+            console.log('未找到“个人订单”链接或链接不可见');
+            return false;
+        }
+    };
+
+    // 监控iframe加载，等待“场地核销”按钮加载完成后点击
+    const monitorIframeForVerificationButton = () => {
+        const iframe = document.querySelector('.RuoYi_iframe[name="iframe2"]');
+        if (!iframe) {
+            console.log('未找到指定的iframe，无法设置监控。');
+            return;
+        }
+        console.log('找到指定的iframe');
+
+        // 延时1s后尝试点击“场地核销”按钮
+        setTimeout(() => {
+            try {
+                iframe.contentDocument.querySelector('#toolbar > a.btn.btn-info.btn-xs').click()
+            } catch (e) {
+                console.error('访问iframe内容失败:', e);
+            }
+        }, 1000);
+    };
+
     // 页面完全加载后执行操作
     window.addEventListener('load', function() {
         console.log('页面已完全加载');
-
-        // 尝试点击“个人订单”链接
-        try {
-            const personalOrderLink = document.querySelector('a.menuItem[href="/venue/personal"]');
-            if (personalOrderLink) {
-                console.log('找到“个人订单”链接');
-
-                // 确保链接可见，然后点击
-                if (personalOrderLink.offsetParent !== null) {
-                    console.log('“个人订单”链接可见，正在尝试点击');
-                    personalOrderLink.click();
-
-                    // 等待页面响应并加载“场地核销”按钮
-                    console.log('等待页面加载“场地核销”按钮...');
-                    setTimeout(() => {
-                        const siteVerificationButton = document.querySelector('a.btn.btn-info.btn-xs[onclick="siteVerification()"]');
-                        if (siteVerificationButton && siteVerificationButton.offsetParent !== null) {
-                            console.log('找到“场地核销”按钮，正在尝试点击');
-                            siteVerificationButton.click();
-                        } else {
-                            console.log('未找到“场地核销”按钮或按钮不可见');
-                        }
-                    }, 2000); // 延迟2秒以等待页面加载
-                } else {
-                    console.log('“个人订单”链接不可见，尝试展开父级菜单');
-                    // 如果链接不可见，尝试展开父级菜单
-                    const parentMenus = document.querySelectorAll('.fa.arrow');
-                    parentMenus.forEach(menu => {
-                        if (menu.offsetParent !== null) {
-                            menu.click();
-                        }
-                    });
-                    // 之后再次尝试点击“个人订单”，然后点击“场地核销”
-                    setTimeout(() => {
-                        if (personalOrderLink.offsetParent !== null) {
-                            console.log('再次尝试点击“个人订单”链接');
-                            personalOrderLink.click();
-                            setTimeout(() => {
-                                const siteVerificationButton = document.querySelector('a.btn.btn-info.btn-xs[onclick="siteVerification()"]');
-                                if (siteVerificationButton && siteVerificationButton.offsetParent !== null) {
-                                    console.log('找到“场地核销”按钮，正在尝试点击');
-                                    siteVerificationButton.click();
-                                } else {
-                                    console.log('未找到“场地核销”按钮或按钮不可见');
-                                }
-                            }, 2000); // 延迟2秒以等待页面加载
-                        }
-                    }, 500); // 延迟500毫秒以等待菜单展开
-                }
-            } else {
-                console.log('未找到“个人订单”链接');
-            }
-        } catch (e) {
-            console.error('自动点击操作失败:', e);
+        if (!tryClickPersonalOrder()) {
+            // 如果“个人订单”链接不可见，尝试展开父级菜单
+            const parentMenus = document.querySelectorAll('.fa.arrow');
+            parentMenus.forEach(menu => menu.click());
+            setTimeout(tryClickPersonalOrder, 500); // 延迟尝试点击“个人订单”链接
         }
     });
 
-
     // 设置定时器，29分钟刷新页面
     setInterval(function() {
+        console.log('正在刷新页面...');
         window.location.reload();
     }, 29 * 60 * 1000);
 })();
